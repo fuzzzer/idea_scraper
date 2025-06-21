@@ -11,56 +11,53 @@ from tqdm import tqdm
 
 def ndjson_to_csv(
     ndjson_path: str | Path,
-    submissions_csv: str | Path | None = None,
-    comments_csv: str | Path | None = None,
+    submissions_csv: str | Path,
+    comments_csv: str | Path,
     chunk_size: int = 2_000,
 ) -> None:
     """
-    Convert an ND-JSON file (one submission-tree per line)
-    into two flat CSV files:
+    Convert an ND-JSON file (one submission-tree per line) into two flat CSVs.
 
-    * <prefix>_submissions.csv
-    * <prefix>_comments.csv
+    * submissions_csv  – one row per post
+    * comments_csv     – one row per comment (with submission_id column)
     """
-    ndjson_path = Path(ndjson_path)
-    base = ndjson_path.with_suffix("")
+    ndjson_path   = Path(ndjson_path)
+    submissions_csv = Path(submissions_csv)
+    comments_csv    = Path(comments_csv)
 
-    submissions_csv = Path(submissions_csv or f"{base}_submissions.csv")
-    comments_csv = Path(comments_csv or f"{base}_comments.csv")
+    submissions_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    # ----- prepare output files (truncate if they exist) ----------
+    # truncate / create
     submissions_csv.write_text("")
     comments_csv.write_text("")
 
     sub_rows: List[dict] = []
     com_rows: List[dict] = []
+
     with ndjson_path.open(encoding="utf-8") as fp:
         for line in tqdm(fp, desc="Converting → CSV"):
             tree = json.loads(line)
 
-            # submission row (comments list removed)
-            sub = {k: v for k, v in tree.items() if k != "comments"}
-            sub_rows.append(sub)
+            # submission row (drop comments)
+            sub_rows.append({k: v for k, v in tree.items() if k != "comments"})
 
-            # comment rows inherit the submission id for easy joins
+            # comment rows
             for c in tree["comments"]:
                 com_rows.append({"submission_id": tree["id"], **c})
 
-            # write in manageable chunks
             if len(sub_rows) >= chunk_size:
-                _append_chunk(sub_rows, submissions_csv)
-                _append_chunk(com_rows, comments_csv)
-                sub_rows.clear()
-                com_rows.clear()
+                _flush(sub_rows, submissions_csv)
+                _flush(com_rows, comments_csv)
 
-    # flush any remainder
-    if sub_rows:
-        _append_chunk(sub_rows, submissions_csv)
-        _append_chunk(com_rows, comments_csv)
+    # remainder
+    _flush(sub_rows, submissions_csv)
+    _flush(com_rows, comments_csv)
 
 
-def _append_chunk(rows: List[dict], outfile: Path) -> None:
-    """Append a list of dicts as CSV (header only on first write)."""
+def _flush(rows: List[dict], outfile: Path) -> None:
+    if not rows:
+        return
     header = not outfile.exists() or outfile.stat().st_size == 0
-    df = pd.DataFrame.from_records(rows)
-    df.to_csv(outfile, mode="a", header=header, index=False)
+    pd.DataFrame.from_records(rows).to_csv(outfile, mode="a",
+                                           header=header, index=False)
+    rows.clear()

@@ -1,48 +1,78 @@
-import os
+# scripts/merge_contents.py
+"""
+Merge the contents of every file with a chosen extension inside a directory
+(recursively) into one big text file.
 
-def collect_py_files_content(directory, output_file):
-    # Check if the input directory exists
-    if not os.path.exists(directory):
-        print(f"Error: Directory '{directory}' does not exist.")
-        return
+Examples
+--------
 
-    # Ensure the output directory exists
-    output_dir = os.path.dirname(output_file)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+# merge every .py file under src/ → ../outputs/merged/src.txt
+python scripts/merge_contents.py src --ext .py
 
-    # Open the output file in write mode
-    with open(output_file, 'w', encoding='utf-8') as outfile:
-        file_count = 0  # Track how many .py files we find
-        # Walk through the directory recursively
-        for root, dirs, files in os.walk(directory):
-            print(f"Entering directory: {root}")  # Debug: print each directory entered
-            for file in files:
-                if file.endswith('.py') and not file.endswith('.g.py'):
-                    file_count += 1
-                    # Get the full file path
-                    file_path = os.path.join(root, file)
-                    print(f"Found py file: {file_path}")  # Debug: print each .py file found
-                    # Read the content of the py file and write it to the output file
-                    with open(file_path, 'r', encoding='utf-8') as py_file:
-                        content = py_file.read()
-                        outfile.write(f"// Content from: {file_path}\n\n")
-                        outfile.write(content)
-                        outfile.write("\n\n")  # Add spacing between files
+# merge .txt files under conversations/ → ../outputs/merged/conversations.txt
+python scripts/merge_contents.py conversations --ext .txt
+"""
 
-        # Summary of the process
-        if file_count == 0:
-            print("No .py files found.")
-        else:
-            print(f"Successfully processed {file_count} .py files.")
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Concatenate many files into one readable text blob."
+    )
+    parser.add_argument(
+        "directory",
+        help="Root directory to walk (processed recursively).",
+    )
+    parser.add_argument(
+        "--ext",
+        default=".txt",
+        help="File extension to include (default: .txt). "
+        "Add the dot or not, both work.",
+    )
+    parser.add_argument(
+        "--out-dir",
+        default=str(Path(__file__).parent.parent / "outputs" / "merged"),
+        help="Destination directory for the merged file "
+        "(default: ../outputs/merged/ relative to project root).",
+    )
+    return parser.parse_args()
+
+
+# --------------------------------------------------------------------------- #
+#   main                                                                      #
+# --------------------------------------------------------------------------- #
+def merge(directory: str | Path, ext: str, out_dir: str | Path) -> None:
+    root = Path(directory).expanduser().resolve()
+    if not root.exists():
+        raise FileNotFoundError(f"{root} does not exist")
+
+    ext = ext if ext.startswith(".") else f".{ext}"  # normalise ".py" vs "py"
+    out_dir = Path(out_dir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # ---------- output file name (prevent double-suffix) ------------------ #
+    top_name = root.name
+    if top_name.endswith(ext):
+        top_name = top_name[: -len(ext)]  # strip ext if present
+    out_file = out_dir / f"{top_name}.txt"
+
+    count = 0
+    with out_file.open("w", encoding="utf-8") as merged:
+        for path in sorted(root.rglob(f"*{ext}")):
+            if path.name.endswith(".g.py"):   # legacy exclusion
+                continue
+            count += 1
+            merged.write(f"// Content from: {path.relative_to(root)}\n\n")
+            merged.write(path.read_text(encoding="utf-8"))
+            merged.write("\n\n")
+
+    print(f"✓ merged {count} file(s) → {out_file}")
+
 
 if __name__ == "__main__":
-    # Get the current script's directory
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Use relative path from script's directory
-    lib_folder = os.path.join(script_dir, '../reddit_scraper')
-    output_txt_file = os.path.join(script_dir, 'outputs/reddit_scraper.txt')
-
-    # Collect all .py file contents and write them to the output file
-    collect_py_files_content(lib_folder, output_txt_file)
+    args = parse_args()
+    merge(args.directory, args.ext, args.out_dir)

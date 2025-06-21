@@ -62,8 +62,7 @@ _(Nothing else is required; the scraper loads `.env` automatically.)_
 # syntax: reddit-scraper <subreddit> <start> <end> [flags]
 python -m reddit_scraper.cli python 2025-06-15 2025-06-20 \
   --min-score 10 \
-  --csv \
-  -o data/python.ndjson
+  --csv
 ```
 
 Flag cheat-sheet:
