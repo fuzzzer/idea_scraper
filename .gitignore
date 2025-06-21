@@ -1,1 +1,7 @@
 .venv/
+.env
+reddit_scraper.egg-info/
+**/__pycache__/**
+output.ndjson
+progress.sqlite
+scripts/outputs
