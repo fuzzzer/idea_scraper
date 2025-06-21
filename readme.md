@@ -30,7 +30,7 @@ and a single _merged_ TXT)
 ## 2 Install (editable dev mode)
 
 ```bash
-git clone https://github.com/your-org/reddit_scraper.git
+git clone https://github.com/fuzzzer/reddit_scraper.git
 cd reddit_scraper
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 python -m pip install -U pip
